@@ -1,0 +1,131 @@
+# Single op-amp pinout shapes. One entry per shape, not per part: many real
+# manufacturer part numbers can share one exact pinout, and none of them
+# names the symbol. A librarian edits this file directly to add, change, or
+# remove a shape; the generator makes no decision of its own. See
+# single.py's module docstring for the "code" naming rule and config.py for
+# the pin-slot schema.
+#
+# Every pin slot on _OPAMP_SINGLE_SYMGEN_TEMPLATE is listed below by its own
+# name: "+", "-", OUT, "V+", "V-" (always required), and EN, "~{EN}",
+# FB_OUT, PAD, NC (omit any of these five to delete that pin).
+#
+# EN and "~{EN}" are chosen by net effect, not by the pin's own bar. EN is
+# the slot for a control pin where logic high turns the op-amp on: a plain
+# enable, or an active-low shutdown, disable, or power-down pin, since an
+# off-type function combined with active-low polarity is two negatives and
+# nets to the same high-turns-it-on behavior as a plain EN. "~{EN}" is the
+# slot for a control pin where logic low turns the op-amp on: an active-low
+# enable, the one case with only a single negative. A part uses at most one
+# of the two.
+#
+# "+" and "-" always generate as "+" and "-", never the manufacturer's own
+# spelling (IN+, (+), NON-INV, and so on). Only "number" is given for them.
+#
+# "description" is one sentence stating what a shape adds over the bare
+# five pins. The generator appends the exact kept-pin list after it, so
+# this must not repeat that list itself.
+#
+# "name_text_size" is optional on any pin. Omitted means the template's own
+# size for that pin. Given, it overrides the size for that one pin on that
+# one output row only; it never touches the template or any other row.
+# Value is millimeters (KiCad's own unit here); 40 mils is 1.016.
+
+parts:
+  # Example part numbers below are the smallest real, real-datasheet source
+  # each pin number/name pairing was confirmed against, not a claim that
+  # this row belongs to that part alone.
+
+  - code: 5p
+    description: Single op-amp
+    # e.g. AD8031BRZ
+    pins:
+      "+": {number: "3"}
+      "-": {number: "2"}
+      OUT: {name: OUT, number: "6"}
+      "V+": {name: "+Vs", number: "7"}
+      "V-": {name: "-Vs", number: "4"}
+
+  - code: 6p_nSHDN
+    description: Single op-amp
+    # e.g. LT1806IS6
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {name: OUT, number: "1"}
+      "V+": {name: "V+", number: "6"}
+      "V-": {name: "V-", number: "2"}
+      "EN": {name: "~{SHDN}", number: "5"}
+
+  - code: 6p_nEN
+    description: Single op-amp
+    # e.g. LT6230CS6#TRMPBF
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {name: OUT, number: "1"}
+      "V+": {name: "V+", number: "6"}
+      "V-": {name: "V-", number: "2"}
+      "~{EN}": {name: "~{EN}", number: "5"}
+
+  - code: 6p_EN
+    description: Single op-amp
+    # e.g. OPA355
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {name: OUT, number: "1"}
+      "V+": {name: "V+", number: "6"}
+      "V-": {name: "V-", number: "2"}
+      EN: {name: EN, number: "5"}
+
+  - code: 6p_nDIS
+    description: Single op-amp
+    # e.g. OPA690
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {name: OUT, number: "1"}
+      "V+": {name: "V+", number: "6"}
+      "V-": {name: "V-", number: "2"}
+      "EN": {name: "~{DIS}", number: "5"}
+
+  - code: 6p_nSD
+    description: Single op-amp
+    # e.g. LT1637CS8. The source names this pin bare "SD", with no bar and
+    # no slash; ~{} is applied anyway, per the rule that every active-low
+    # pin gets it regardless of how the source wrote it.
+    pins:
+      "+": {number: "3"}
+      "-": {number: "2"}
+      OUT: {name: OUT, number: "6"}
+      "V+": {name: "V+", number: "7"}
+      "V-": {name: "V-", number: "4"}
+      "EN": {name: "~{SD}", number: "5"}
+
+  - code: 8p_nSHDN_2xNC
+    description: Single op-amp
+    # e.g. LTC6268IS8#TRPBF
+    pins:
+      "+": {number: "3"}
+      "-": {number: "2"}
+      OUT: {name: OUT, number: "6"}
+      "V+": {name: "V+", number: "7"}
+      "V-": {name: "V-", number: "5"}
+      "EN": {name: "~{SHDN}", number: "8"}
+      NC: {name: NC, number: ["1", "4"], electrical_type: no_connect}
+
+  - code: 9p_nPD_FB_PADpwr_NC
+    description: >-
+      Single op-amp
+    # e.g. ADA4857_1. The source names this pin bare "PD"; ~{} is applied
+    # anyway, same as the 6p_nSD row above.
+    pins:
+      "+": {number: "4"}
+      "-": {number: "3"}
+      OUT: {name: OUT, number: "7"}
+      "V+": {name: "Vs+", number: "8"}
+      "V-": {name: "Vs-", number: "5"}
+      "EN": {name: "~{PD}", number: "1"}
+      FB_OUT: {name: FB, number: "2"}
+      PAD: {name: EP, number: "9", electrical_type: power_in}
+      NC: {name: NC, number: "6", electrical_type: no_connect}

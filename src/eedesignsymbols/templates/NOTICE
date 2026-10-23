@@ -1,0 +1,15 @@
+Some template drawings in this folder are adapted from symbols in the KiCad
+symbol library, https://gitlab.com/kicad/libraries/kicad-symbols, by the KiCad
+library contributors, licensed under CC BY-SA 4.0,
+https://creativecommons.org/licenses/by-sa/4.0/.
+
+Adapted files: _Q_NPN, _Q_PNP, _Q_NIGBT, _Q_NMOS, _Q_NMOS_KELVIN, _Q_PMOS,
+_Q_NGAN, _Q_NGAN_KELVIN, _Q_NJFET, _Q_PJFET (each _SYMGEN_TEMPLATE.kicad_sym).
+
+Changes: pin numbers replaced by terminal letters, some elements moved or
+resized, fields and names changed. These adapted files are licensed under
+CC BY-SA 4.0.
+
+All other files in this folder are licensed under the GNU General Public
+License, version 3 or later, the same as the rest of this package. See LICENSE
+at the top of the package.
