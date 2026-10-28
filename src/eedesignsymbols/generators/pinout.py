@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +48,7 @@ from eedesignsymbols.generators.common import (
     require_provenance,
     set_provenance,
     template_name,
+    without_version_tail,
 )
 from eedesignsymbols.preview_tools import (
     DEFAULT_OUTPUT_DIRNAME,
@@ -76,18 +77,67 @@ class PinOrder:
     """Which terminal sits on pin 1, pin 2, and so on."""
 
     terminals: tuple[str, ...]
+    numbers: tuple[tuple[str, ...], ...] = ()
+    """Package pin numbers per terminal, in the order of ``terminals``. Empty means
+    pin 1, 2, 3 in that order. A terminal with more than one number is one
+    electrical pin on several package pins, such as a drain on pins 1, 2, 5 and 6."""
+
+    name_code: str = ""
+    """The name fragment for this ordering. Empty means the terminals joined."""
+
+    templates: tuple[str, ...] = ()
+    """The templates this ordering applies to. Empty means every template of the
+    family."""
+
+    previous_names: tuple[str, ...] = ()
+    """Old output names of this form. The plain route does not read them."""
+
+    def __post_init__(self) -> None:
+        try:
+            common.validate_previous_names(self.previous_names)
+            if self.name_code:
+                common.check_name_part(self.name_code, "pinout code")
+        except ValueError as exc:
+            raise GeneratorError(str(exc)) from exc
+        if self.numbers:
+            flat = [number for group in self.numbers for number in group]
+            if (
+                len(self.numbers) != len(self.terminals)
+                or any(not group for group in self.numbers)
+                or any(not n.isdecimal() or int(n) < 1 for n in flat)
+                or len(set(flat)) != len(flat)
+            ):
+                raise GeneratorError(
+                    "Each physical pin must have one positive number and terminal"
+                )
 
     @property
     def code(self) -> str:
         """The name fragment, for example ``GSD`` or ``BCE``."""
-        return "".join(self.terminals)
+        return self.name_code or "".join(self.terminals)
 
     def number_for(self, terminal: str) -> str:
         """Return the pin number carrying ``terminal``, as KiCad stores it."""
-        return str(self.terminals.index(terminal) + 1)
+        index = self.terminals.index(terminal)
+        if not self.numbers:
+            return str(index + 1)
+        numbers = self.numbers[index]
+        return numbers[0] if len(numbers) == 1 else f"[{','.join(numbers)}]"
 
     def __str__(self) -> str:
+        if self.numbers:
+            return " ".join(
+                f"{','.join(numbers)}={terminal}"
+                for terminal, numbers in zip(self.terminals, self.numbers, strict=True)
+            )
         return " ".join(f"{i}={t}" for i, t in enumerate(self.terminals, start=1))
+
+    def applies_to(self, template_symbol_name: str) -> bool:
+        """True when this ordering is built from the named template.
+
+        A version number at the end of the name is ignored.
+        """
+        return not self.templates or without_version_tail(template_symbol_name) in self.templates
 
 
 @dataclass(frozen=True)
@@ -158,6 +208,8 @@ class Family:
 
         wanted = sorted(self.terminals)
         for order in self.orders:
+            if set(order.templates) - set(self.templates):
+                raise GeneratorError(f"{self.name}: ordering names an undeclared template")
             if sorted(order.terminals) != wanted:
                 raise GeneratorError(
                     f"{self.name}: declared ordering {order.code!r} is not a permutation "
@@ -304,6 +356,10 @@ class Family:
         # Captured before the rename below, because a route may record the template
         # an output was built from, and that is the name it has now.
         built_from = symbol.name
+        if not order.applies_to(built_from):
+            raise GeneratorError(
+                f"{order.code}: not declared for {without_version_tail(built_from)}"
+            )
 
         pins = pins_of(symbol)
         found = sorted(str(pin.name) for pin in pins)
@@ -312,12 +368,16 @@ class Family:
 
         for pin in pins:
             pin.number = order.number_for(str(pin.name))
+            if order.numbers and len(order.numbers[order.terminals.index(str(pin.name))]) > 1:
+                pin.number_text_size = 0
 
         # Pin number visibility is inherited from the template, never set here.
         # Operator ruling 2026-08-26: a template that hides its pin numbers is
         # stating how the part is drawn, and a generator does not overrule the
         # drawing. The siblings are told apart by their names and their
-        # descriptions, both of which carry the ordering.
+        # descriptions, both of which carry the ordering. A pin with a group of
+        # numbers gets a number text size of zero, so the group text does not
+        # crowd the drawing. A pin with one number keeps the template's size.
 
         rename_symbol(symbol, self.target_name(symbol.name, order))
 
@@ -370,6 +430,8 @@ class Family:
         results: list[ResultLike] = []
 
         for order in self.pin_orders():
+            if not order.applies_to(template.symbols[0].name):
+                continue
             lib = self.build(template, order, route=route)
             # `build` stamps, so this never fires today. It is the runtime check that
             # no write path forgets the header stamp. ADR-100.
@@ -525,7 +587,30 @@ def run_many(
         help=f"Preview gallery output directory (default: ./{DEFAULT_OUTPUT_DIRNAME}, "
         "relative to the current directory, never inside --dir).",
     )
+    parser.add_argument(
+        "--part",
+        action="append",
+        default=[],
+        metavar="CODE",
+        help="Generate only this declared pinout code. Repeat to select more than one.",
+    )
     args = parser.parse_args(argv)
+    if args.part:
+        unknown = set(args.part) - {order.code for family in families for order in family.orders}
+        if unknown:
+            parser.error(f"Unknown pinout code(s): {', '.join(sorted(unknown))}")
+        # Keep only the selected orderings, and only the templates they apply to.
+        selected = []
+        for family in families:
+            orders = tuple(order for order in family.orders if order.code in args.part)
+            if orders:
+                selected_templates = tuple(
+                    name
+                    for name in family.templates
+                    if any(order.applies_to(name) for order in orders)
+                )
+                selected.append(replace(family, orders=orders, templates=selected_templates))
+        families = selected
 
     source: Path = args.templates or route.template_dir() or args.dir
     out_dir: Path = args.out or args.dir

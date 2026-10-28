@@ -66,7 +66,7 @@ class TestTheCommand:
         out.mkdir()
 
         assert mosfet.main(["--dir", str(out), "--no-preview"]) == 0
-        assert len(list(out.glob("*.kicad_sym"))) == 12
+        assert len(list(out.glob("*.kicad_sym"))) == 13
 
     def test_a_source_tree_without_a_commit_is_refused(
         self, source_tree, monkeypatch, tmp_path, capsys

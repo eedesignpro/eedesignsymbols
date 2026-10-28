@@ -14,26 +14,11 @@ derived from a manufacturer part number. A pinout shape is shared by
 however many real parts happen to match it, and none of them gets to name
 the symbol.
 
-A librarian composes ``code`` from a fixed order of segments, joined with
-``_``, so two rows never collide by construction:
-
-1. Pin count, as ``<N>p`` (``5p``, ``6p``, ...). Always present, always
-   first: the coarsest, least opinionated split.
-2. The control pin's own rendered text, with ``~{X}`` written as ``nX``
-   (``~{SHDN}`` becomes ``nSHDN``). Every active-low control pin is
-   written this way, whatever bar or slash or nothing the source used
-   (a source pin bare-named ``SD`` still renders as ``~{SD}`` on the
-   generated symbol, and its code segment is ``nSD``). Omitted when the
-   row has no control pin.
-3. ``FB`` when the row keeps ``FB_OUT``. Omitted otherwise.
-4. ``PAD<type>`` when the row keeps ``PAD``, where ``<type>`` is
-   ``pwr`` (electrical type ``power_in``), ``passive``, or ``nc``
-   (``no_connect``). Omitted when the row drops ``PAD``.
-5. ``NC`` when the row keeps any ``NC`` pin. Omitted otherwise.
-
-No segment ranks the shapes it names: ``6p_nSHDN`` is not "more standard"
-than ``6p_EN``, only differently shaped. A segment's absence is a fact
-about that row's pins, not a judgment about it.
+Each code has the form ``<N>P_PINOUT<NN>``, for example ``5P_PINOUT02``.
+``<N>`` is the total pin count. The number ``<NN>`` counts separately for each
+amplifier count and pin count. Each number is written in the configuration, not
+derived from row order, and a retired number is not used again. The description
+lists the full pinout.
 
 RERUN THIS GENERATOR
 --------------------
@@ -57,10 +42,11 @@ write it somewhere else.
 from __future__ import annotations
 
 import argparse
+import re
 from collections.abc import Sequence
 from pathlib import Path
 
-from eedesigncore import Pin, PinElectricalType, SchPolyline, SymbolLib
+from eedesigncore import Pin, PinElectricalType, SchPolyline, SchRect, SymbolLib, SymbolUnit
 
 from eedesignsymbols import version
 from eedesignsymbols.format_version import FormatVersionError, require_current_format
@@ -73,7 +59,12 @@ from eedesignsymbols.generators.common import (
     same_kind,
     set_provenance,
 )
-from eedesignsymbols.generators.opamp.config import ALL_TEMPLATE_PINS, PartSpec, load_config
+from eedesignsymbols.generators.opamp.config import (
+    ALL_TEMPLATE_PINS,
+    ConfigError,
+    PartSpec,
+    load_config,
+)
 from eedesignsymbols.preview_tools import (
     DEFAULT_OUTPUT_DIRNAME,
     GalleryEntry,
@@ -99,6 +90,47 @@ it sits in the file."""
 
 class GeneratorError(ValueError):
     """The template, or a config row, cannot be built into a symbol."""
+
+
+def fit_pin_name(pin: Pin, unit: SymbolUnit) -> None:
+    """Shrink a visible pin name so it fits inside the body along the pin axis.
+
+    The fit takes a width of one text size per visible character and keeps 2
+    percent of the body width free for offsets, strokes, and a sloped body edge.
+    It is an estimate, not a font measurement. A size set in the configuration is
+    an upper limit. A hidden name stays hidden. The template is not changed.
+    """
+    if pin.name_text_size <= 0:
+        return
+    visible = re.sub(r"[~^_]\{([^{}]*)\}", r"\1", str(pin.name))
+    if not visible or visible == "~":
+        return
+    vertical = pin.angle % 180 == 90
+    cross_axis = 0 if vertical else 1
+    along_axis = 1 - cross_axis
+    cross = pin.position[cross_axis]
+    spans = []
+    for item in unit.items:
+        if same_kind(item, SchPolyline) and item.pts and item.pts[0] == item.pts[-1]:
+            points = item.pts
+        elif same_kind(item, SchRect):
+            x0, y0 = item.start
+            x1, y1 = item.end
+            points = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+        else:
+            continue
+        crossings = []
+        for start, end in zip(points, points[1:], strict=False):
+            a, b = start[cross_axis], end[cross_axis]
+            if a != b and min(a, b) <= cross <= max(a, b):
+                fraction = (cross - a) / (b - a)
+                crossings.append(
+                    start[along_axis] + fraction * (end[along_axis] - start[along_axis])
+                )
+        if crossings and max(crossings) > min(crossings):
+            spans.append(max(crossings) - min(crossings))
+    if spans:
+        pin.name_text_size = min(pin.name_text_size, round(0.98 * max(spans) / len(visible), 4))
 
 
 def _pin_number_text(numbers: tuple[str, ...]) -> str:
@@ -135,6 +167,8 @@ def build(
     fields to the output, and defaults to
     :func:`~eedesignsymbols.writing.default_route`.
     """
+    if spec.channels != 1:
+        raise GeneratorError(f"{spec.code}: use the dual generator for two channels")
     if len(template.symbols) != 1:
         raise GeneratorError(f"expected exactly 1 symbol, found {len(template.symbols)}")
 
@@ -171,6 +205,7 @@ def build(
                 item.name_text_size = pin_spec.name_text_size
 
             item.number = _pin_number_text(pin_spec.numbers)
+            fit_pin_name(item, unit)
             kept_items.append(item)
 
         if fb_out_deleted:
@@ -206,17 +241,7 @@ def build(
     rename_symbol(symbol, generated_name(built_from, spec.code))
 
     set_field(symbol, DESCRIPTION_FIELD, spec.description)
-    pin_entries = sorted(
-        (
-            (int(number), number, ps.name)
-            for slot in ALL_TEMPLATE_PINS
-            if (ps := spec.kept(slot)) is not None
-            for number in ps.numbers
-        ),
-        key=lambda entry: entry[0],
-    )
-    pin_list = " ".join(f"{number}={name}" for _, number, name in pin_entries)
-    annotate(symbol, f"(pins {pin_list})")
+    annotate(symbol, pinout_description(spec))
 
     (route or default_route()).stamp(
         symbol, generator=GENERATOR, template=built_from, version=tool_version
@@ -224,6 +249,28 @@ def build(
     set_provenance(lib, generator=GENERATOR, version=tool_version)
 
     return lib
+
+
+def pinout_description(spec: PartSpec) -> str:
+    """Return ``(pins 1=... 2=...)``, in pin number order.
+
+    A pin of a two-channel row carries its channel, for example ``3=CHA.INA+``.
+    """
+
+    def label(slot: str, name: str) -> str:
+        channel, separator, _ = slot.rpartition(".")
+        return f"{channel}.{name}" if separator else name
+
+    pin_entries = sorted(
+        (
+            (number, label(slot, ps.name))
+            for slot, ps in spec.pins.items()
+            if ps is not None
+            for number in ps.numbers
+        ),
+        key=lambda entry: (0, int(entry[0])) if entry[0].isdecimal() else (1, entry[0]),
+    )
+    return "(pins " + " ".join(f"{number}={name}" for number, name in pin_entries) + ")"
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +285,8 @@ def generate_all(
     *,
     dry_run: bool = False,
     route: Route | None = None,
+    channels: int = 1,
+    only: Sequence[str] = (),
 ) -> list[ResultLike]:
     """Bring ``out_dir`` up to date with every part row in ``config_path``.
 
@@ -253,6 +302,12 @@ def generate_all(
         out_dir: Destination directory. Must exist.
         dry_run: Decide and report, but write nothing.
         route: Defaults to :func:`~eedesignsymbols.writing.default_route`.
+        channels: 1 for single op-amp rows, 2 for dual rows. Every row in the
+            configuration must have this channel count.
+        only: The row codes to generate. Empty means every row.
+
+    Every selected row is built before the first write, so a bad row writes
+    nothing.
     """
     route = route or default_route()
     out_dir = Path(out_dir)
@@ -271,10 +326,24 @@ def generate_all(
     require_current_format(template, template_path)
 
     specs = load_config(config_path)
+    if channels not in (1, 2) or any(spec.channels != channels for spec in specs):
+        raise GeneratorError("The configuration channel count does not match this command.")
+    if only:
+        unknown = set(only) - {spec.code for spec in specs}
+        if unknown:
+            raise GeneratorError(f"Unknown part code(s): {', '.join(sorted(unknown))}")
+        specs = [spec for spec in specs if spec.code in only]
+
+    builder = build
+    if channels == 2:
+        from eedesignsymbols.generators.opamp.dual import build as build_dual
+
+        builder = build_dual
+
+    libraries = [(spec, builder(template, spec, route=route)) for spec in specs]
 
     results: list[ResultLike] = []
-    for spec in specs:
-        lib = build(template, spec, route=route)
+    for spec, lib in libraries:
         require_provenance(lib)
         try:
             if dry_run:
@@ -287,7 +356,9 @@ def generate_all(
     return results
 
 
-def build_preview(results: Sequence[ResultLike], preview_dir: Path) -> Path:
+def build_preview(
+    results: Sequence[ResultLike], preview_dir: Path, *, generator: str = GENERATOR
+) -> Path:
     """Render every symbol ``results`` names and write a gallery for them.
 
     Only the files this run actually touched, not the rest of whatever
@@ -304,7 +375,7 @@ def build_preview(results: Sequence[ResultLike], preview_dir: Path) -> Path:
     entries = [
         GalleryEntry(
             name=path.stem,
-            category=GENERATOR,
+            category=generator,
             svg_paths=export_by_path[path].svg_paths,
             error=export_by_path[path].error,
         )
@@ -318,14 +389,27 @@ def build_preview(results: Sequence[ResultLike], preview_dir: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def main(argv: Sequence[str] | None = None, *, route: Route | None = None) -> int:
-    """Command line entry point. See the rerun block at the top of this file."""
+def main(
+    argv: Sequence[str] | None = None, *, route: Route | None = None, channels: int = 1
+) -> int:
+    """Command line entry point. See the rerun block at the top of this file.
+
+    ``channels`` is 2 for the dual command, :mod:`eedesignsymbols.generators.opamp.dual`.
+    """
+    kind = "dual" if channels == 2 else "single"
     parser = argparse.ArgumentParser(
-        prog="python -m eedesignsymbols.generators.opamp.single",
-        description="Generate single op-amp symbols from a YAML config and one template.",
+        prog=f"python -m eedesignsymbols.generators.opamp.{kind}",
+        description=f"Generate {kind} op-amp symbols from a YAML config and one template.",
         allow_abbrev=False,
     )
     parser.add_argument("--config", required=True, type=Path, help="The YAML config file.")
+    parser.add_argument(
+        "--part",
+        action="append",
+        default=[],
+        metavar="CODE",
+        help="Generate only this configuration code. Repeat to select more than one.",
+    )
     parser.add_argument(
         "--dir",
         required=True,
@@ -363,7 +447,12 @@ def main(argv: Sequence[str] | None = None, *, route: Route | None = None) -> in
     args = parser.parse_args(argv)
 
     route = route or default_route()
-    refused: tuple[type[Exception], ...] = (GeneratorError, FormatVersionError, *route.refusals)
+    refused: tuple[type[Exception], ...] = (
+        ConfigError,
+        GeneratorError,
+        FormatVersionError,
+        *route.refusals,
+    )
     template_dir: Path = args.templates or route.template_dir() or args.dir
     out_dir: Path = args.out or args.dir
     if not args.dir.is_dir():
@@ -384,7 +473,13 @@ def main(argv: Sequence[str] | None = None, *, route: Route | None = None) -> in
     tally: dict[str, int] = {outcome.value: 0 for outcome in Outcome}
     try:
         results = generate_all(
-            args.config, template_dir, out_dir, dry_run=args.dry_run, route=route
+            args.config,
+            template_dir,
+            out_dir,
+            dry_run=args.dry_run,
+            route=route,
+            channels=channels,
+            only=args.part,
         )
     except refused as exc:
         print(f"error: {exc}")
@@ -405,7 +500,7 @@ def main(argv: Sequence[str] | None = None, *, route: Route | None = None) -> in
 
     if not args.dry_run and not args.no_preview:
         preview_dir = args.preview_dir or Path.cwd() / DEFAULT_OUTPUT_DIRNAME
-        gallery_path = build_preview(results, preview_dir)
+        gallery_path = build_preview(results, preview_dir, generator=f"opamp_{kind}")
         print(f"preview: {gallery_path}")
 
     return 0
@@ -417,8 +512,10 @@ __all__ = [
     "GeneratorError",
     "build",
     "build_preview",
+    "fit_pin_name",
     "generate_all",
     "main",
+    "pinout_description",
 ]
 
 

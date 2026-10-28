@@ -122,7 +122,8 @@ class TestTheOutput:
         for template in family.declared_templates():
             results = family.generate_all(template, tmp_path)
 
-            assert len(results) == len(family.orders)
+            name = load(template).symbols[0].name
+            assert len(results) == sum(order.applies_to(name) for order in family.orders)
             for result in results:
                 assert result.outcome is Outcome.CREATED
                 assert result.path.name == f"{load(result.path).symbols[0].name}.kicad_sym"
@@ -180,7 +181,7 @@ class TestTheOutput:
 
         results = single.generate_all(config, None, tmp_path)
 
-        assert len(results) == 8
+        assert len(results) == 15
         for result in results:
             symbol = load(result.path).symbols[0]
             assert [f.name for f in symbol.fields] == KICAD_FIELDS
@@ -221,7 +222,8 @@ class TestTheCommand:
     def test_it_writes_into_dir_from_the_shipped_templates(self, tmp_path):
         assert mosfet.main(["--dir", str(tmp_path)]) == 0
 
-        assert len(list(tmp_path.glob("Q_*MOS_*_SYMGEN.kicad_sym"))) == 12
+        # Six orderings of each template, and the grouped-drain form of the NMOS one.
+        assert len(list(tmp_path.glob("Q_*MOS_*_SYMGEN.kicad_sym"))) == 13
 
     def test_templates_names_another_folder(self, tmp_path, capsys):
         empty = tmp_path / "empty"
@@ -236,7 +238,7 @@ class TestTheCommand:
         capsys.readouterr()
 
         assert mosfet.main(["--dir", str(tmp_path)]) == 0
-        assert "12 unchanged" in capsys.readouterr().out
+        assert "13 unchanged" in capsys.readouterr().out
 
     def test_the_op_amp_command_writes_from_the_shipped_template(self, tmp_path):
         config = Path(single.__file__).with_name("single_opamp_parts.yaml")
@@ -244,7 +246,7 @@ class TestTheCommand:
         code = single.main(["--config", str(config), "--dir", str(tmp_path), "--no-preview"])
 
         assert code == 0
-        assert len(list(tmp_path.glob("OPAMP_SINGLE_*_SYMGEN.kicad_sym"))) == 8
+        assert len(list(tmp_path.glob("OPAMP_SINGLE_*_SYMGEN.kicad_sym"))) == 15
 
     def test_every_family_runs_from_the_command(self, tmp_path):
         for module in (bjt, diode, igbt, jfet, led, mosfet):

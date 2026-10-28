@@ -5,6 +5,45 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+### Added
+
+- A dual op-amp generator, `eedesignsymbols.generators.opamp.dual`, with its
+  configuration `dual_opamp_parts.yaml`. It builds 8 dual op-amp symbols from the
+  single op-amp drawing: unit A and unit B for the two amplifiers, and unit PWR for
+  the shared supply pins. A global enable pin goes on the left of unit PWR.
+- Seven more single op-amp rows, for 15 in all.
+- A `KA` symbol for every diode drawing: pin 1 = K, 2 = A for the six
+  unidirectional drawings, and pin 1 = A2, 2 = A1 for the two bidirectional ones.
+- Five color LEDs, amber, blue, green, red and yellow, made from the plain LED
+  drawing with the two light arrows in that color. The `led` command writes them
+  with the plain LED. `diode --leds` writes the five color LEDs only.
+- An N-channel MOSFET symbol whose drain is on pins 1, 2, 5 and 6,
+  `Q_NMOS_6P_PINOUT01_SYMGEN`. The drain pin number text has size zero.
+- `--part CODE` on every generator command writes only the symbols for that
+  pinout code.
+- A pin order can give one terminal a group of package pins, and can apply to some
+  templates of its family only.
+
+### Changed
+
+- The single op-amp codes now have the form `<N>P_PINOUT<NN>`, for example
+  `5P_PINOUT01`. The descriptions list every pin.
+- The single op-amp inputs are named `IN+` and `IN-`. Dual inputs are `INA+`,
+  `INA-`, `INB+` and `INB-`, and dual outputs are `OUTA` and `OUTB`. Every other
+  pin name follows the datasheet, for example `~{ENABLE}` with its overbar on the
+  LT6230 and `ENABLE` on the OPA355.
+- A visible op-amp pin name gets a smaller text size when it would not fit
+  inside the amplifier body. A text size set in the configuration is the upper
+  limit.
+- An op-amp row can list old output names under `previous_names`. The plain
+  route does not use them.
+
+## [0.1.0 public] - 2026-10-23
+
+The first public release, as `eedesignsymbols`.
+
 ### Changed
 
 - The generators no longer need a library rules package. A *route* now finds the

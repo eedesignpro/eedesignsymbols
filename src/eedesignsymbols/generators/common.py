@@ -27,6 +27,7 @@ A test asserts the block is present.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TypeGuard, TypeVar
 
@@ -100,6 +101,43 @@ def without_version_tail(name: str) -> str:
     '_Q_NMOS_SYMGEN_TEMPLATE'
     """
     return _VERSION_TAIL.sub("", name)
+
+
+_NAME_PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+-]*")
+
+
+def check_name_part(text: str, what: str = "name") -> str:
+    """Refuse text that cannot be part of a symbol name and a file name.
+
+    Letters, digits, and ``_ . + -`` only, a letter or digit first, and no ``__``,
+    which a library may use to separate a name from its version number. Returns
+    ``text`` unchanged.
+
+    >>> check_name_part("6P_PINOUT01")
+    '6P_PINOUT01'
+    """
+    if not isinstance(text, str) or not _NAME_PART.fullmatch(text) or "__" in text:
+        raise ValueError(
+            f"{what} {text!r} may hold only letters, digits, and _ . + -, must start "
+            f"with a letter or digit, and must not hold '__'"
+        )
+    return text
+
+
+def validate_previous_names(names: Sequence[str]) -> None:
+    """Check a list of old output names for one output.
+
+    The plain route does not read old names. A library route that tracks renames can.
+    Each name is a base name with no version number, and no name repeats.
+
+    Raises:
+        ValueError: ``names`` is a single string, repeats a name, or holds a name
+            that :func:`check_name_part` refuses.
+    """
+    if isinstance(names, str) or len(set(names)) != len(names):
+        raise ValueError("Previous output names must be a list of distinct base names.")
+    for name in names:
+        check_name_part(name, "previous output name")
 
 
 _PINOUT_MARKER = " (pins "
@@ -368,6 +406,7 @@ __all__ = [
     "GeneratorStampError",
     "UnstampedLibraryError",
     "annotate",
+    "check_name_part",
     "core_description",
     "generated_name",
     "generator_stamp",
@@ -381,5 +420,6 @@ __all__ = [
     "template_file",
     "template_name",
     "tool_version",
+    "validate_previous_names",
     "without_version_tail",
 ]

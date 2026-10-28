@@ -14,13 +14,12 @@ an ESD clamp, is symmetric: both terminals are anodes, named ``A1`` and ``A2``.
 The terminal sets differ, so they cannot be one :class:`~pinout.Family`, but they
 are one part family to a librarian and share one command.
 
-ANODE FIRST
+PIN ORDERS
 
-Only ``AK`` is generated. A survey of 20 two-pin single diodes in the previous
-library found 19 with the anode on pin 1, and the single exception was named
-``DIODE_ZENER_Kp1_Ap2``: K-first was the case worth spelling out. Operator
-ruling, 2026-08-14: a ``KA`` symbol is more likely a mistake than a part, so it
-is not generated at all.
+Every unidirectional drawing gives two symbols: ``AK`` (pin 1 = A, 2 = K) and
+``KA`` (pin 1 = K, 2 = A). Every bidirectional drawing gives two as well:
+``A1A2`` (pin 1 = A1, 2 = A2) and ``KA`` (pin 1 = A2, 2 = A1). The bidirectional
+``KA`` form keeps the symmetric terminal names and swaps their pin numbers.
 
 A template stores no ordering of its own. It carries pin *names*, this module
 says which name gets which number, and ``kicad-file-io`` writes the result in
@@ -30,10 +29,10 @@ PARALLEL PINS
 
 Real parts put the same terminal on several package pins: ``AAK`` (1=A 2=A 3=K)
 on a power package, ``AKA`` (1=A 2=K 3=A) on a DPAK where the tab is the cathode.
-Both are drawn on this same two-pin drawing, by stacking the extra pin on the
-terminal it shares. That needs the pinout pattern of ADR-011, which maps a
-terminal to a list of pin numbers rather than to one. Not implemented: a
-:class:`~pinout.Family` refuses a repeated terminal rather than mis-numbering it.
+Both are drawn on this same two-pin drawing. A :class:`~pinout.PinOrder` with
+``numbers`` gives one terminal a group of package pins, as the grouped-drain
+MOSFET does. No diode declares such an ordering yet. A :class:`~pinout.Family`
+refuses a repeated terminal rather than mis-numbering it.
 
 RERUN THIS GENERATOR
 --------------------
@@ -41,6 +40,10 @@ Every declared template is generated. A file that already holds the same content
 is left alone, and any other is overwritten. Safe to paste as often as you like::
 
     .venv\\Scripts\\python.exe -m eedesignsymbols.generators.diode --dir "<output dir>"
+
+Add ``--leds`` to generate the five color LEDs instead: amber, blue, green, red
+and yellow, see :mod:`eedesignsymbols.generators.led`. Add ``--part KA_RED`` to
+select one color. Without ``--leds`` the command generates the diodes only.
 
 Add ``--dry-run`` to see what it would do without writing.
 
@@ -51,16 +54,25 @@ under ``./.preview`` by default and never inside ``--dir``. Add
 
 from __future__ import annotations
 
+import argparse
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 
+from eedesignsymbols.generators import led
 from eedesignsymbols.generators.pinout import Family, GeneratorError, PinOrder, pins_of, run_many
 
 ANODE_FIRST = PinOrder(("A", "K"))
-"""Pin 1 = anode, pin 2 = cathode. The only ordering generated."""
+"""Pin 1 = anode, pin 2 = cathode."""
+
+CATHODE_FIRST = PinOrder(("K", "A"))
+"""Pin 1 = cathode, pin 2 = anode."""
+
+BIDIRECTIONAL_REVERSE = PinOrder(("A2", "A1"), name_code="KA")
+"""Pin 1 = A2, pin 2 = A1, named ``KA`` to match the unidirectional form."""
 
 BIDIRECTIONAL_ORDER = PinOrder(("A1", "A2"))
-"""Pin 1 = A1, pin 2 = A2. Symmetric, so there is only one arrangement."""
+"""Pin 1 = A1, pin 2 = A2."""
 
 UNIDIRECTIONAL = Family(
     name="diode_pinout",
@@ -73,9 +85,9 @@ UNIDIRECTIONAL = Family(
         "_D_TVS_UNI_SYMGEN_TEMPLATE",
         "_D_ZENER_SYMGEN_TEMPLATE",
     ),
-    orders=(ANODE_FIRST,),
+    orders=(ANODE_FIRST, CATHODE_FIRST),
 )
-"""Anode and cathode. Six drawings, one symbol each."""
+"""Anode and cathode. Six drawings, two pin orders each."""
 
 BIDIRECTIONAL = Family(
     name="diode_pinout",
@@ -84,9 +96,14 @@ BIDIRECTIONAL = Family(
         "_D_ESD_BIDIR_SYMGEN_TEMPLATE",
         "_D_TVS_BIDIR_SYMGEN_TEMPLATE",
     ),
-    orders=(BIDIRECTIONAL_ORDER,),
+    orders=(BIDIRECTIONAL_ORDER, BIDIRECTIONAL_REVERSE),
 )
-"""Two anodes. Two drawings, one symbol each."""
+"""Two anodes. Two drawings, two pin orders each."""
+
+LEDS = replace(led.FAMILY, orders=led.COLOR_ORDERS)
+"""The five color LEDs, for ``--leds``. The LED family owns the LED template, so
+this is that family with only its color orderings. The registry does not list it,
+because the LED family already declares the template."""
 
 FAMILIES = (UNIDIRECTIONAL, BIDIRECTIONAL)
 
@@ -95,15 +112,22 @@ GENERATOR = UNIDIRECTIONAL.name
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Command line entry point. See the rerun line at the top of this file."""
-    return run_many(FAMILIES, "eedesignsymbols.generators.diode", argv)
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    parser.add_argument("--leds", action="store_true")
+    selection, remaining = parser.parse_known_args(argv)
+    families = (LEDS,) if selection.leds else (UNIDIRECTIONAL, BIDIRECTIONAL)
+    return run_many(families, "eedesignsymbols.generators.diode", remaining)
 
 
 __all__ = [
     "ANODE_FIRST",
     "BIDIRECTIONAL",
     "BIDIRECTIONAL_ORDER",
+    "BIDIRECTIONAL_REVERSE",
+    "CATHODE_FIRST",
     "FAMILIES",
     "GENERATOR",
+    "LEDS",
     "UNIDIRECTIONAL",
     "GeneratorError",
     "PinOrder",

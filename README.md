@@ -22,21 +22,30 @@ _Q_NMOS_SYMGEN_TEMPLATE  ->  Q_NMOS_GSD_SYMGEN   (pin 1 = G, 2 = S, 3 = D)
 _Q_NPN_SYMGEN_TEMPLATE   ->  Q_NPN_BCE_SYMGEN    (pin 1 = B, 2 = C, 3 = E)
 ```
 
-The op-amp generator reads a configuration file. Each row names the pins to keep,
-their numbers, and their electrical types, and the tool removes the other pins.
+The op-amp generators read a configuration file. Each row names the pins to keep,
+their numbers, and their electrical types, and the tool removes the other pins. The
+dual op-amp generator uses the single op-amp drawing twice, as unit A and unit B,
+and puts the supply pins in a third unit, PWR.
 
 ## Part families
 
 | Command module | Terminals | Templates | Symbols |
 |---|---|---|---|
-| `mosfet` | G, S, D | N-channel, P-channel | 12 |
+| `mosfet` | G, S, D | N-channel, P-channel | 13 |
 | `bjt` | B, C, E | NPN, PNP | 12 |
 | `igbt` | G, C, E | N-channel | 6 |
 | `jfet` | G, S, D | N-channel, P-channel | 12 |
-| `diode` | A, K | six diode drawings | 6 |
-| `diode` | A1, A2 | two bidirectional drawings | 2 |
-| `led` | A, K and A, K, MP | LED, LED with mounting pad | 2 |
-| `opamp.single` | per configuration row | single op-amp | 8 |
+| `diode` | A, K | six diode drawings | 12 |
+| `diode` | A1, A2 | two bidirectional drawings | 4 |
+| `led` | A, K and A, K, MP | LED, LED with mounting pad | 7 |
+| `opamp.single` | per configuration row | single op-amp | 15 |
+| `opamp.dual` | per configuration row | dual op-amp | 8 |
+
+The 13 MOSFET symbols are the six pin orders of each template and one N-channel
+form whose drain is on pins 1, 2, 5 and 6. Each diode drawing gives an anode-first
+and a cathode-first symbol. The LED symbols are the plain LED, five color LEDs
+(amber, blue, green, red, yellow) and the LED with mounting pad. `diode --leds`
+writes the five color LEDs.
 
 ## The templates
 
@@ -61,6 +70,8 @@ template. A rerun leaves a file alone when its content would not change.
 - `--templates` reads the template files from another folder.
 - `--dry-run` reports what a run would write and writes nothing.
 - `--no-preview` skips the HTML preview of the written symbols.
+- `--part CODE` writes only the symbols for one pinout code, for example
+  `--part 6P_PINOUT01`. Repeat it to select more than one.
 
 ## Tests
 

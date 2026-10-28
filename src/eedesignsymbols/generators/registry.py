@@ -213,9 +213,8 @@ def expected_outputs(entries: Iterable[FamilyEntry] = FAMILIES) -> dict[str, str
     """Map every output base name the package produces to the family that produces it.
 
     ADR-073 part 2, producer side. One entry per declared template and declared
-    ordering, so the count is the sum over families of templates times orders: 52
-    today, being 12 mosfet, 12 bjt, 6 igbt, 12 jfet, 6 unidirectional diode, 2
-    bidirectional diode, 1 LED and 1 mounting-pad LED.
+    ordering, filtered by each ordering's template restrictions. The grouped-drain
+    NMOS form has no PMOS counterpart.
 
     The name comes from :meth:`~eedesignsymbols.generators.pinout.Family.target_name`,
     which is the method the generator itself calls, so the report cannot disagree with
@@ -243,6 +242,8 @@ def expected_outputs(entries: Iterable[FamilyEntry] = FAMILIES) -> dict[str, str
     for module, family in entries:
         for template in family.templates:
             for order in family.pin_orders():
+                if not order.applies_to(template):
+                    continue
                 name = family.target_name(template, order)
                 producers.setdefault(name, []).append(describe(module, family))
 

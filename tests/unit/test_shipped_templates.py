@@ -118,7 +118,7 @@ class TestEveryFamilyReadsTheShippedTemplates:
 
         results = single.generate_all(config, None, tmp_path)
 
-        assert len(results) == 8
+        assert len(results) == 15
         assert all(r.path.is_file() for r in results)
 
 

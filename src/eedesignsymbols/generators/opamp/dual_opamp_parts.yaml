@@ -1,0 +1,89 @@
+# One generic form per exact pin assignment and manufacturer supply/pad names.
+# The first template unit supplies both amplifier drawings. Power is shared.
+# Channel names are INA+/INA-/OUTA and INB+/INB-/OUTB.
+# Per-channel control slots are CHA.EN or CHA.~{EN}, and CHB equivalents.
+# EN means high enables. ~{EN} means low enables. Names remain manufacturer text.
+# Unprefixed controls belong to the power unit, left side, at y=-1.27/+1.27 mm.
+# These forms have no control pin. The tests cover both control arrangements.
+parts:
+  - code: 8P_PINOUT01
+    previous_names: [OPAMP_DUAL_8p_PINOUT01_SYMGEN]
+    channels: 2
+    description: Dual op-amp
+    pins: &standard
+      CHA.OUT: {number: "1"}
+      CHA.-: {number: "2"}
+      CHA.+: {number: "3"}
+      "V-": {name: "V-", number: "4"}
+      CHB.+: {number: "5"}
+      CHB.-: {number: "6"}
+      CHB.OUT: {number: "7"}
+      "V+": {name: "V+", number: "8"}
+
+  - code: 8P_PINOUT02
+    previous_names: [OPAMP_DUAL_8p_PINOUT02_SYMGEN]
+    channels: 2
+    description: Dual op-amp
+    # AD8012 and AD8032. Subscript S uses plain-text VS.
+    pins:
+      <<: *standard
+      "V-": {name: "-VS", number: "4"}
+      "V+": {name: "+VS", number: "8"}
+
+  - code: 8P_PINOUT03
+    previous_names: [OPAMP_DUAL_8p_PINOUT03_SYMGEN]
+    channels: 2
+    description: Dual op-amp
+    # MCP6002.
+    pins:
+      <<: *standard
+      "V-": {name: VSS, number: "4"}
+      "V+": {name: VDD, number: "8"}
+
+  - code: 8P_PINOUT04
+    previous_names: [OPAMP_DUAL_8p_PINOUT04_SYMGEN]
+    channels: 2
+    description: Dual op-amp
+    # TLV2402.
+    pins:
+      <<: *standard
+      "V-": {name: GND, number: "4"}
+      "V+": {name: VCC, number: "8"}
+
+  - code: 9P_PINOUT01
+    previous_names: [OPAMP_DUAL_9p_PINOUT01_SYMGEN]
+    channels: 2
+    description: Dual op-amp with exposed pad
+    # ADA4500-2. EPAD may connect to V- or remain unconnected.
+    pins:
+      <<: *standard
+      PAD: {name: EPAD, number: "9", electrical_type: passive}
+
+  - code: 9P_PINOUT02
+    previous_names: [OPAMP_DUAL_9p_PINOUT02_SYMGEN]
+    channels: 2
+    description: Dual op-amp with exposed pad
+    # LTC6253 DFN. Exposed pad 9 is V-, and must be soldered to V-.
+    pins:
+      <<: *standard
+      PAD: {name: "V-", number: "9", electrical_type: power_in}
+
+  - code: 9P_PINOUT03
+    previous_names: [OPAMP_DUAL_9p_PINOUT03_SYMGEN]
+    channels: 2
+    description: Dual op-amp with exposed pad
+    # LT6231, LT6234, LTC6241. Underside metal is V-; PCB connection is optional.
+    pins:
+      <<: *standard
+      PAD: {name: "V-", number: "9", electrical_type: passive}
+
+  - code: 9P_PINOUT04
+    previous_names: [OPAMP_DUAL_9p_PINOUT04_SYMGEN]
+    channels: 2
+    description: Dual op-amp with exposed pad
+    # MCP6002 MC. EP must connect to VSS.
+    pins:
+      <<: *standard
+      "V-": {name: VSS, number: "4"}
+      "V+": {name: VDD, number: "8"}
+      PAD: {name: EP, number: "9", electrical_type: power_in}

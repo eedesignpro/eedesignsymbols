@@ -9,17 +9,18 @@
 # name: "+", "-", OUT, "V+", "V-" (always required), and EN, "~{EN}",
 # FB_OUT, PAD, NC (omit any of these five to delete that pin).
 #
-# EN and "~{EN}" are chosen by net effect, not by the pin's own bar. EN is
-# the slot for a control pin where logic high turns the op-amp on: a plain
-# enable, or an active-low shutdown, disable, or power-down pin, since an
-# off-type function combined with active-low polarity is two negatives and
-# nets to the same high-turns-it-on behavior as a plain EN. "~{EN}" is the
-# slot for a control pin where logic low turns the op-amp on: an active-low
-# enable, the one case with only a single negative. A part uses at most one
-# of the two.
+# Control direction follows the logic level that enables the op-amp:
+# high enables: point up, using EN; low enables: point down, using "~{EN}".
+# Active-high enable and active-low disable therefore point up.
+# Active-low enable and active-high disable therefore point down.
+# Preserve the manufacturer name independently of this direction.
+# A part uses at most one control slot.
 #
-# "+" and "-" always generate as "+" and "-", never the manufacturer's own
-# spelling (IN+, (+), NON-INV, and so on). Only "number" is given for them.
+# Template slots "+" and "-" generate as "IN+" and "IN-".
+# Only "number" is required for these slots.
+# Descriptions use IN+ and IN-. The output always uses OUT.
+# All other names match the manufacturer, including case and overbars.
+# Control-slot selection describes enable behavior, not the printed name.
 #
 # "description" is one sentence stating what a shape adds over the bare
 # five pins. The generator appends the exact kept-pin list after it, so
@@ -35,17 +36,30 @@ parts:
   # each pin number/name pairing was confirmed against, not a claim that
   # this row belongs to that part alone.
 
-  - code: 5p
+  - code: 5P_PINOUT01
+    previous_names: [OPAMP_SINGLE_5p_SYMGEN, OPAMP_SINGLE_5p_PINOUT01_SYMGEN]
     description: Single op-amp
     # e.g. AD8031BRZ
     pins:
       "+": {number: "3"}
       "-": {number: "2"}
       OUT: {name: OUT, number: "6"}
-      "V+": {name: "+Vs", number: "7"}
-      "V-": {name: "-Vs", number: "4"}
+      "V+": {name: "+VS", number: "7"}
+      "V-": {name: "-VS", number: "4"}
 
-  - code: 6p_nSHDN
+  - code: 5P_PINOUT02
+    previous_names: [OPAMP_SINGLE_5p_PINOUT02_SYMGEN]
+    description: Single op-amp
+    # TSOT-23, top view.
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {name: OUT, number: "1"}
+      "V+": {name: "V+", number: "5"}
+      "V-": {name: "V-", number: "2"}
+
+  - code: 6P_PINOUT01
+    previous_names: [OPAMP_SINGLE_6p_nSHDN_SYMGEN, OPAMP_SINGLE_6p_PINOUT01_SYMGEN]
     description: Single op-amp
     # e.g. LT1806IS6
     pins:
@@ -56,53 +70,56 @@ parts:
       "V-": {name: "V-", number: "2"}
       "EN": {name: "~{SHDN}", number: "5"}
 
-  - code: 6p_nEN
+  - code: 6P_PINOUT02
+    previous_names: [OPAMP_SINGLE_6p_nEN_SYMGEN, OPAMP_SINGLE_6p_PINOUT02_SYMGEN]
     description: Single op-amp
-    # e.g. LT6230CS6#TRMPBF
+    # LT6230CS6#TRPBF. The datasheet shows an overbar on ENABLE. Low enables.
     pins:
       "+": {number: "3"}
       "-": {number: "4"}
       OUT: {name: OUT, number: "1"}
       "V+": {name: "V+", number: "6"}
       "V-": {name: "V-", number: "2"}
-      "~{EN}": {name: "~{EN}", number: "5"}
+      "~{EN}": {name: "~{ENABLE}", number: "5"}
 
-  - code: 6p_EN
+  - code: 6P_PINOUT03
+    previous_names: [OPAMP_SINGLE_6p_EN_SYMGEN, OPAMP_SINGLE_6p_PINOUT03_SYMGEN]
     description: Single op-amp
-    # e.g. OPA355
+    # e.g. OPA355, OPA373
     pins:
       "+": {number: "3"}
       "-": {number: "4"}
       OUT: {name: OUT, number: "1"}
       "V+": {name: "V+", number: "6"}
       "V-": {name: "V-", number: "2"}
-      EN: {name: EN, number: "5"}
+      EN: {name: ENABLE, number: "5"}
 
-  - code: 6p_nDIS
+  - code: 6P_PINOUT04
+    previous_names: [OPAMP_SINGLE_6p_nDIS_SYMGEN, OPAMP_SINGLE_6p_PINOUT04_SYMGEN]
     description: Single op-amp
     # e.g. OPA690
     pins:
       "+": {number: "3"}
       "-": {number: "4"}
       OUT: {name: OUT, number: "1"}
-      "V+": {name: "V+", number: "6"}
-      "V-": {name: "V-", number: "2"}
+      "V+": {name: "+VS", number: "6"}
+      "V-": {name: "-VS", number: "2"}
       "EN": {name: "~{DIS}", number: "5"}
 
-  - code: 6p_nSD
+  - code: 6P_PINOUT05
+    previous_names: [OPAMP_SINGLE_6p_nSD_SYMGEN, OPAMP_SINGLE_6p_PINOUT05_SYMGEN]
     description: Single op-amp
-    # e.g. LT1637CS8. The source names this pin bare "SD", with no bar and
-    # no slash; ~{} is applied anyway, per the rule that every active-low
-    # pin gets it regardless of how the source wrote it.
+    # LT1637CS8, datasheet 1637fd, pages 2 and 12: SHDN is high to disable.
     pins:
       "+": {number: "3"}
       "-": {number: "2"}
       OUT: {name: OUT, number: "6"}
       "V+": {name: "V+", number: "7"}
       "V-": {name: "V-", number: "4"}
-      "EN": {name: "~{SD}", number: "5"}
+      "~{EN}": {name: "SHDN", number: "5"}
 
-  - code: 8p_nSHDN_2xNC
+  - code: 8P_PINOUT01
+    previous_names: [OPAMP_SINGLE_8p_nSHDN_2xNC_SYMGEN, OPAMP_SINGLE_8p_PINOUT01_SYMGEN]
     description: Single op-amp
     # e.g. LTC6268IS8#TRPBF
     pins:
@@ -114,18 +131,91 @@ parts:
       "EN": {name: "~{SHDN}", number: "8"}
       NC: {name: NC, number: ["1", "4"], electrical_type: no_connect}
 
-  - code: 9p_nPD_FB_PADpwr_NC
+  - code: 9P_PINOUT01
+    previous_names: [OPAMP_SINGLE_9p_nPD_FB_PADpwr_NC_SYMGEN, OPAMP_SINGLE_9p_PINOUT01_SYMGEN]
     description: >-
       Single op-amp
-    # e.g. ADA4857_1. The source names this pin bare "PD"; ~{} is applied
-    # anyway, same as the 6p_nSD row above.
+    # ADA4857-1YCPZ-R7, LFCSP, Rev. D, pages 3, 7 and 21.
+    # PD is high to disable, without a bar. EP uses footprint pad number 9.
+    # Supply subscripts use plain text.
     pins:
       "+": {number: "4"}
       "-": {number: "3"}
       OUT: {name: OUT, number: "7"}
-      "V+": {name: "Vs+", number: "8"}
-      "V-": {name: "Vs-", number: "5"}
-      "EN": {name: "~{PD}", number: "1"}
+      "V+": {name: "+VS", number: "8"}
+      "V-": {name: "-VS", number: "5"}
+      "~{EN}": {name: "PD", number: "1"}
       FB_OUT: {name: FB, number: "2"}
       PAD: {name: EP, number: "9", electrical_type: power_in}
       NC: {name: NC, number: "6", electrical_type: no_connect}
+
+  - code: 5P_PINOUT03
+    previous_names: [OPAMP_SINGLE_5p_PINOUT03_SYMGEN]
+    description: Single op-amp
+    # MCP6001. DS20001733L, pin table. VSS is not GND.
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {number: "1"}
+      "V+": {name: VDD, number: "5"}
+      "V-": {name: VSS, number: "2"}
+
+  - code: 5P_PINOUT04
+    previous_names: [OPAMP_SINGLE_5p_PINOUT04_SYMGEN]
+    description: Single op-amp
+    # MIC922, pin configuration.
+    pins:
+      "+": {number: "1"}
+      "-": {number: "3"}
+      OUT: {number: "4"}
+      "V+": {name: "V+", number: "5"}
+      "V-": {name: "V-", number: "2"}
+
+  - code: 5P_PINOUT05
+    previous_names: [OPAMP_SINGLE_5p_PINOUT05_SYMGEN]
+    description: Single op-amp
+    # OPA656 SOT-23. Supply subscripts use plain-text VS.
+    pins:
+      "+": {number: "3"}
+      "-": {number: "4"}
+      OUT: {number: "1"}
+      "V+": {name: "+VS", number: "5"}
+      "V-": {name: "-VS", number: "2"}
+
+  - code: 6P_PINOUT07
+    previous_names: [OPAMP_SINGLE_6p_PINOUT07_SYMGEN]
+    description: Single op-amp
+    # OPA358. ENABLE is high to enable.
+    pins:
+      "+": {number: "1"}
+      "-": {number: "3"}
+      OUT: {number: "4"}
+      "V+": {name: "V+", number: "6"}
+      "V-": {name: GND, number: "2"}
+      EN: {name: ENABLE, number: "5"}
+
+  - code: 6P_PINOUT08
+    previous_names: [OPAMP_SINGLE_6p_PINOUT08_SYMGEN]
+    description: Single op-amp
+    # OPA847. Functional pins only. NC pins 1 and 5 are absent.
+    pins:
+      "+": {number: "3"}
+      "-": {number: "2"}
+      OUT: {number: "6"}
+      "V+": {name: "+VS", number: "7"}
+      "V-": {name: "-VS", number: "4"}
+      EN: {name: "~{DIS}", number: "8"}
+
+  - code: 8P_PINOUT02
+    previous_names: [OPAMP_SINGLE_8p_PINOUT02_SYMGEN]
+    description: Single op-amp
+    # ADA4857-1 SOIC. PD is high to disable.
+    pins:
+      "+": {number: "3"}
+      "-": {number: "2"}
+      OUT: {number: "6"}
+      "V+": {name: "+VS", number: "7"}
+      "V-": {name: "-VS", number: "4"}
+      "~{EN}": {name: PD, number: "8"}
+      FB_OUT: {name: FB, number: "1"}
+      NC: {name: NC, number: "5", electrical_type: no_connect}

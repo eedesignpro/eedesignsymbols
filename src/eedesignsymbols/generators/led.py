@@ -6,7 +6,17 @@ cathode. The mechanics live in :mod:`eedesignsymbols.generators.pinout`; this mo
 is the configuration.
 
     ``_D_LED_SYMGEN_TEMPLATE``     ->  ``D_LED_KA_SYMGEN``       (1=K 2=A)
-    ``_D_LED_MP_SYMGEN_TEMPLATE``  ->  ``D_LED_MP_KAMP_SYMGEN``  (1=K 2=A 3=MP)
+    ``_D_LED_SYMGEN_TEMPLATE``     ->  ``D_LED_KA_RED_SYMGEN``   (1=K 2=A, red arrows)
+    ``_D_LED_MP_SYMGEN_TEMPLATE``  ->  ``D_LED_KAMP_SYMGEN``     (1=K 2=A 3=MP)
+
+COLOR LEDS
+
+The plain LED drawing also gives five color forms: amber, blue, green, red and
+yellow. Each is the cathode-first LED with its two light arrows drawn in that
+color, and its description names the color. The arrows are found by their exact
+points, so a changed template stops the run rather than recolor a body line.
+The diode command makes the same five with ``--leds``, see
+:mod:`eedesignsymbols.generators.diode`.
 
 TWO FAMILIES, BECAUSE THE TERMINAL SETS DIFFER
 
@@ -21,17 +31,14 @@ Both are cathode first. Operator ruling, 2026-09-01: the mounting-pad part is
 ``K=1 A=2 MP=3``, so the pad takes the third pin and the first two match the
 plain LED.
 
-CATHODE FIRST, WHICH IS THE OPPOSITE OF THE PLAIN DIODE
+CATHODE FIRST ONLY
 
-:mod:`eedesignsymbols.generators.diode` generates anode-first only, and refuses to
-generate ``KA`` at all: a survey of 20 two-pin single diodes found 19 with the
-anode on pin 1, so a K-first plain diode is more likely a mistake than a part.
-Operator ruling 2026-08-14, ADR-028.
+:mod:`eedesignsymbols.generators.diode` generates both orderings, anode first
+(``AK``) and cathode first (``KA``), for every plain diode drawing.
 
-**An LED is the other way round, and that is why it is its own family.** Operator
-ruling 2026-09-01: the first generated LED carries the cathode on pin 1 and the
-anode on pin 2. The two rulings do not conflict, because they are about different
-parts. Reusing the diode family would have forced one ordering on both.
+**An LED is generated cathode first only.** Every generated LED carries the
+cathode on pin 1 and the anode on pin 2. Reusing the diode family would have
+given the LED both orderings.
 
 A separate family is also what keeps the template out of the diode generator's
 reach. A family claims a template by declaring it, not by matching pin names
@@ -63,7 +70,12 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 
-from eedesignsymbols.generators.pinout import Family, PinOrder, run_many
+from eedesigncore import Color, SchPolyline, SymbolLib
+
+from eedesignsymbols.generators.common import same_kind
+from eedesignsymbols.generators.pinout import Family, GeneratorError, PinOrder, run_many
+from eedesignsymbols.symbol_fields import DESCRIPTION_FIELD, set_field
+from eedesignsymbols.writing import Route
 
 CATHODE_FIRST = PinOrder(("K", "A"))
 """Pin 1 = cathode, pin 2 = anode. The only ordering generated.
@@ -80,13 +92,74 @@ The same cathode-first rule as :data:`CATHODE_FIRST`, with the mounting pad adde
 as the third pin. Operator ruling, 2026-09-01.
 """
 
-FAMILY = Family(
+LED_COLORS: dict[str, tuple[int, int, int]] = {
+    "KA_AMBER": (255, 153, 0),
+    "KA_BLUE": (0, 0, 255),
+    "KA_GREEN": (0, 194, 0),
+    "KA_RED": (255, 0, 0),
+    "KA_YELLOW": (255, 255, 0),
+}
+"""Pinout code to the red, green and blue values of the light arrows."""
+
+LED_ARROW_PATHS = (
+    ((-2.794, 0.508), (-4.318, 2.032), (-3.556, 2.032), (-4.318, 2.032), (-4.318, 1.27)),
+    ((-1.524, 0.508), (-3.048, 2.032), (-2.286, 2.032), (-3.048, 2.032), (-3.048, 1.27)),
+)
+"""The points of the two light arrows in ``_D_LED_SYMGEN_TEMPLATE``. A color form
+recolors each one. Each must occur exactly once, so a changed template stops the
+run rather than recolor a body line."""
+
+COLOR_ORDERS = tuple(
+    PinOrder(
+        ("K", "A"),
+        name_code=code,
+        previous_names=(f"D_LED_KA_SYMGEN_{code.removeprefix('KA_')}",),
+    )
+    for code in LED_COLORS
+)
+"""Cathode first, one ordering per color. The code names the color."""
+
+
+class LedFamily(Family):
+    """A pinout family that also colors the light arrows of a color form."""
+
+    def build(
+        self,
+        template: SymbolLib,
+        order: PinOrder,
+        *,
+        tool_version: str | None = None,
+        route: Route | None = None,
+    ) -> SymbolLib:
+        lib = super().build(template, order, tool_version=tool_version, route=route)
+        if order.code not in LED_COLORS:
+            return lib
+        symbol = lib.symbols[0]
+        red, green, blue = LED_COLORS[order.code]
+        for points in LED_ARROW_PATHS:
+            matches = [
+                item
+                for unit in symbol.units
+                for item in unit.items
+                if same_kind(item, SchPolyline) and tuple(item.pts) == points
+            ]
+            if len(matches) != 1:
+                raise GeneratorError(
+                    "The LED template must contain each declared emission arrow once."
+                )
+            matches[0].stroke.color = Color(r=red, g=green, b=blue, a=1.0)
+        color_name = order.code.removeprefix("KA_").lower()
+        set_field(symbol, DESCRIPTION_FIELD, f"{color_name.capitalize()} LED (pins {order})")
+        return lib
+
+
+FAMILY = LedFamily(
     name="led_pinout",
     terminals=("A", "K"),
     templates=("_D_LED_SYMGEN_TEMPLATE",),
-    orders=(CATHODE_FIRST,),
+    orders=(CATHODE_FIRST, *COLOR_ORDERS),
 )
-"""Anode and cathode. One drawing, one symbol."""
+"""Anode and cathode. One drawing: the plain LED and five color forms."""
 
 WITH_MOUNTING_PAD = Family(
     name="led_pinout",
@@ -110,9 +183,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 __all__ = [
     "CATHODE_FIRST",
     "CATHODE_FIRST_WITH_PAD",
+    "COLOR_ORDERS",
     "FAMILIES",
     "FAMILY",
     "GENERATOR",
+    "LED_ARROW_PATHS",
+    "LED_COLORS",
+    "LedFamily",
     "WITH_MOUNTING_PAD",
     "main",
 ]
